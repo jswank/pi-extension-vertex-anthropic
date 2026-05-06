@@ -68,13 +68,6 @@ const MODELS: VertexClaudeModelDef[] = [
 		maxTokens: 64_000,
 	},
 	{
-		id: "claude-sonnet-4-6-1",
-		name: "Claude Sonnet 4.6.1 (Vertex)",
-		cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-		contextWindow: 1_000_000,
-		maxTokens: 64_000,
-	},
-	{
 		id: "claude-opus-4-6",
 		name: "Claude Opus 4.6 (Vertex)",
 		cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
@@ -91,7 +84,7 @@ const MODELS: VertexClaudeModelDef[] = [
 ];
 
 function familyKey(modelId: string): string {
-	// "claude-sonnet-4-6-1" -> "SONNET", "claude-haiku-4-5@20251001" -> "HAIKU"
+	// "claude-sonnet-4-6" -> "SONNET", "claude-haiku-4-5@20251001" -> "HAIKU"
 	const base = modelId.replace(/@.*$/, "").replace(/^claude-/, "");
 	return base.split("-")[0]!.toUpperCase();
 }

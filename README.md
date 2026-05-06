@@ -70,7 +70,6 @@ Models registered:
 | --- | --- |
 | `vertex-anthropic/claude-haiku-4-5@20251001` | 200k ctx, budget-based thinking |
 | `vertex-anthropic/claude-sonnet-4-6` | 1M ctx, adaptive thinking |
-| `vertex-anthropic/claude-sonnet-4-6-1` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-4-6` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-4-7` | 1M ctx, adaptive thinking |
 
