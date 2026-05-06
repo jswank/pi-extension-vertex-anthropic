@@ -1,0 +1,37 @@
+{
+  "name": "@jswank/pi-extension-vertex-anthropic",
+  "version": "0.1.0",
+  "description": "pi extension that routes Anthropic Claude requests through Google Vertex AI Model Garden using ADC.",
+  "type": "module",
+  "main": "./index.ts",
+  "license": "MIT",
+  "author": "Jason Swank",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jswank/pi-extension-vertex-anthropic.git"
+  },
+  "keywords": [
+    "pi",
+    "pi-extension",
+    "anthropic",
+    "claude",
+    "vertex",
+    "vertex-ai",
+    "gcp",
+    "google-cloud"
+  ],
+  "scripts": {
+    "clean": "echo 'nothing to clean'",
+    "build": "echo 'nothing to build'",
+    "check": "echo 'nothing to check'"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "@anthropic-ai/vertex-sdk": "^0.13.0"
+  }
+}
