@@ -47,6 +47,8 @@ interface VertexClaudeModelDef {
 	cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
 	contextWindow: number;
 	maxTokens: number;
+	/** True for models that use adaptive thinking (type: "adaptive") rather than budget-based (type: "enabled"). */
+	adaptiveThinking?: boolean;
 }
 
 // Per https://platform.claude.com/docs/en/api/claude-on-vertex-ai:
@@ -66,6 +68,7 @@ const MODELS: VertexClaudeModelDef[] = [
 		cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
 		contextWindow: 1_000_000,
 		maxTokens: 64_000,
+		adaptiveThinking: true,
 	},
 	{
 		id: "claude-opus-4-6",
@@ -73,6 +76,7 @@ const MODELS: VertexClaudeModelDef[] = [
 		cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
 		contextWindow: 1_000_000,
 		maxTokens: 128_000,
+		adaptiveThinking: true,
 	},
 	{
 		id: "claude-opus-4-7",
@@ -80,6 +84,7 @@ const MODELS: VertexClaudeModelDef[] = [
 		cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
 		contextWindow: 1_000_000,
 		maxTokens: 128_000,
+		adaptiveThinking: true,
 	},
 ];
 
@@ -229,6 +234,7 @@ export default function (pi: ExtensionAPI) {
 			cost: m.cost,
 			contextWindow: m.contextWindow,
 			maxTokens: m.maxTokens,
+			...(m.adaptiveThinking && { compat: { forceAdaptiveThinking: true } }),
 		})),
 		streamSimple: streamVertexAnthropic,
 	});
