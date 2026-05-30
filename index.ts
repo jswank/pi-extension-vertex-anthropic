@@ -224,8 +224,9 @@ export default function (pi: ExtensionAPI) {
 		api: API,
 		baseUrl: VERTEX_BASE_URL,
 		// ADC handles real auth inside AnthropicVertex; the harness only needs a
-		// non-empty marker so it doesn't treat the provider as unconfigured.
-		apiKey: "GCP_APPLICATION_DEFAULT_CREDENTIALS",
+		// non-empty literal marker so it doesn't treat the provider as unconfigured.
+		// Must not be all-caps (which pi detects as a legacy env-var reference).
+		apiKey: "gcp-adc",
 		models: MODELS.map((m) => ({
 			id: m.id,
 			name: m.name,
