@@ -86,6 +86,14 @@ const MODELS: VertexClaudeModelDef[] = [
 		maxTokens: 128_000,
 		adaptiveThinking: true,
 	},
+	{
+		id: "claude-opus-4-8",
+		name: "Claude Opus 4.8 (Vertex)",
+		cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+		contextWindow: 1_000_000,
+		maxTokens: 128_000,
+		adaptiveThinking: true,
+	},
 ];
 
 function familyKey(modelId: string): string {
@@ -130,10 +138,10 @@ function multiRegionBaseURL(region: string): string | undefined {
 	}
 }
 
-// Adaptive thinking is supported on Sonnet 4.6+ and Opus 4.6+; Haiku 4.5 uses
+// Adaptive thinking is supported on Sonnet and Opus models; Haiku uses
 // budget-based thinking. (Mirrors `supportsAdaptiveThinking` in pi-ai.)
 function supportsAdaptiveThinking(modelId: string): boolean {
-	return /sonnet-4-6|opus-4-6|opus-4-7/.test(modelId);
+	return /sonnet|opus/.test(modelId);
 }
 
 function mapReasoningToEffort(reasoning: SimpleStreamOptions["reasoning"]): AnthropicEffort {
