@@ -94,6 +94,14 @@ const MODELS: VertexClaudeModelDef[] = [
 		maxTokens: 128_000,
 		adaptiveThinking: true,
 	},
+	{
+		id: "claude-sonnet-5",
+		name: "Claude Sonnet 5 (Vertex)",
+		cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+		contextWindow: 1_000_000,
+		maxTokens: 64_000,
+		adaptiveThinking: true,
+	},
 ];
 
 function familyKey(modelId: string): string {
