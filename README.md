@@ -72,6 +72,9 @@ Models registered:
 | `vertex-anthropic/claude-sonnet-4-6` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-4-6` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-4-7` | 1M ctx, adaptive thinking |
+| `vertex-anthropic/claude-opus-4-8` | 1M ctx, adaptive thinking |
+| `vertex-anthropic/claude-sonnet-5` | 1M ctx, adaptive thinking |
+| `vertex-anthropic/claude-opus-5` | 1M ctx, adaptive thinking |
 
 Pricing in `index.ts` matches Anthropic-direct pricing — Vertex regional and
 multi-region endpoints add a 10% premium that is not reflected in the cost

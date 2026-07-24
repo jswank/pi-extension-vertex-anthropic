@@ -102,6 +102,14 @@ const MODELS: VertexClaudeModelDef[] = [
 		maxTokens: 64_000,
 		adaptiveThinking: true,
 	},
+	{
+		id: "claude-opus-5",
+		name: "Claude Opus 5 (Vertex)",
+		cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+		contextWindow: 1_000_000,
+		maxTokens: 128_000,
+		adaptiveThinking: true,
+	},
 ];
 
 function familyKey(modelId: string): string {
