@@ -3,7 +3,9 @@
  *
  * Routes Claude models hosted on Vertex AI through pi's existing
  * `anthropic-messages` streaming logic by injecting an `AnthropicVertex`
- * client. Authentication uses Google Application Default Credentials.
+ * client. Authentication uses Google Application Default Credentials. AWS
+ * external-account ADC is extended with an AWS SDK credential supplier so IAM
+ * Identity Center profiles and their shared SSO cache can back Google WIF.
  *
  * Setup:
  *   gcloud auth application-default login
@@ -24,6 +26,11 @@
  *   /model vertex-anthropic/claude-sonnet-4-6
  */
 
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import {
 	type AnthropicEffort,
@@ -33,9 +40,15 @@ import {
 	type Context,
 	type Model,
 	type SimpleStreamOptions,
-	streamAnthropic,
-} from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-ai";
+import { stream as streamAnthropic } from "@earendil-works/pi-ai/api/anthropic-messages";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	AwsClient,
+	type AwsSecurityCredentialsSupplier,
+	type BaseExternalAccountClientOptions,
+	type ExternalAccountSupplierContext,
+} from "google-auth-library";
 
 const PROVIDER = "vertex-anthropic";
 const API: Api = "vertex-anthropic-messages" as Api;
@@ -140,6 +153,96 @@ function resolveProject(): string {
 	return projectId;
 }
 
+interface AwsExternalAccountConfig extends BaseExternalAccountClientOptions {
+	type: "external_account";
+	credential_source?: {
+		environment_id?: string;
+	};
+}
+
+let cachedAwsAuthClient: AwsClient | undefined;
+let awsAuthClientResolved = false;
+
+function applicationDefaultCredentialsPath(): string {
+	return (
+		process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim() ||
+		join(homedir(), ".config", "gcloud", "application_default_credentials.json")
+	);
+}
+
+/**
+ * Build a Google AWS WIF client whose AWS credential supplier uses the full
+ * AWS SDK provider chain. Google's default Node.js AWS supplier only supports
+ * environment credentials and EC2 metadata; the AWS SDK chain also supports
+ * AWS_PROFILE and the IAM Identity Center cache under ~/.aws/sso/cache.
+ */
+function resolveAwsFederatedAuthClient(): AwsClient | undefined {
+	if (awsAuthClientResolved) {
+		return cachedAwsAuthClient;
+	}
+
+	const adcPath = applicationDefaultCredentialsPath();
+	let rawConfig: string;
+	try {
+		rawConfig = readFileSync(adcPath, "utf8");
+	} catch (error) {
+		if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+			throw new Error(`vertex-anthropic: cannot read GOOGLE_APPLICATION_CREDENTIALS at ${adcPath}`, {
+				cause: error,
+			});
+		}
+		awsAuthClientResolved = true;
+		return undefined;
+	}
+
+	let adc: AwsExternalAccountConfig;
+	try {
+		adc = JSON.parse(rawConfig) as AwsExternalAccountConfig;
+	} catch (error) {
+		throw new Error(`vertex-anthropic: invalid ADC JSON at ${adcPath}`, { cause: error });
+	}
+
+	if (
+		adc.type !== "external_account" ||
+		adc.subject_token_type !== "urn:ietf:params:aws:token-type:aws4_request" ||
+		adc.credential_source?.environment_id !== "aws1"
+	) {
+		awsAuthClientResolved = true;
+		return undefined;
+	}
+
+	const region = process.env.AWS_REGION?.trim() || process.env.AWS_DEFAULT_REGION?.trim();
+	if (!region) {
+		throw new Error(
+			"vertex-anthropic: AWS WIF with an SSO profile requires AWS_REGION or AWS_DEFAULT_REGION.",
+		);
+	}
+
+	const profile = process.env.AWS_PROFILE?.trim();
+	const credentialsProvider = fromNodeProviderChain(profile ? { profile } : {});
+	const supplier: AwsSecurityCredentialsSupplier = {
+		async getAwsRegion(_context: ExternalAccountSupplierContext) {
+			return region;
+		},
+		async getAwsSecurityCredentials(_context: ExternalAccountSupplierContext) {
+			const credentials = await credentialsProvider();
+			return {
+				accessKeyId: credentials.accessKeyId,
+				secretAccessKey: credentials.secretAccessKey,
+				token: credentials.sessionToken,
+			};
+		},
+	};
+
+	const { credential_source: _credentialSource, ...clientOptions } = adc;
+	cachedAwsAuthClient = new AwsClient({
+		...clientOptions,
+		aws_security_credentials_supplier: supplier,
+	});
+	awsAuthClientResolved = true;
+	return cachedAwsAuthClient;
+}
+
 // Multi-region identifiers ("us", "eu") route through dedicated endpoints
 // rather than `{region}-aiplatform.googleapis.com`. The vertex-sdk doesn't
 // special-case these, so we override baseURL when we see one.
@@ -172,7 +275,7 @@ function mapReasoningToEffort(reasoning: SimpleStreamOptions["reasoning"]): Anth
 	}
 }
 
-const THINKING_BUDGETS: Record<Exclude<NonNullable<SimpleStreamOptions["reasoning"]>, "xhigh">, number> = {
+const THINKING_BUDGETS: Partial<Record<NonNullable<SimpleStreamOptions["reasoning"]>, number>> = {
 	minimal: 1024,
 	low: 2048,
 	medium: 8192,
@@ -204,8 +307,8 @@ function buildAnthropicOptions(model: Model<Api>, options?: SimpleStreamOptions)
 		return { ...base, thinkingEnabled: true, effort: mapReasoningToEffort(options.reasoning) };
 	}
 
-	const level = options.reasoning === "xhigh" ? "high" : options.reasoning;
-	const thinkingBudget = options.thinkingBudgets?.[level] ?? THINKING_BUDGETS[level];
+	const level = options.reasoning === "max" || options.reasoning === "xhigh" ? "high" : options.reasoning;
+	const thinkingBudget = options.thinkingBudgets?.[level] ?? THINKING_BUDGETS[level] ?? THINKING_BUDGETS.high!;
 	const baseMax = base.maxTokens ?? 0;
 	const maxTokens = Math.min(baseMax + thinkingBudget, model.maxTokens);
 	return {
@@ -224,12 +327,17 @@ function streamVertexAnthropic(
 	const projectId = resolveProject();
 	const region = resolveLocation(model.id);
 	const baseURL = multiRegionBaseURL(region);
+	const authClient = resolveAwsFederatedAuthClient();
 
-	// AnthropicVertex extends BaseAnthropic; it mints a bearer token from ADC
-	// via google-auth-library and rewrites .messages.create() to POST to
-	//   {baseURL}/projects/{projectId}/locations/{region}/publishers/anthropic/models/{id}:streamRawPredict
-	// while injecting anthropic_version: "vertex-2023-10-16".
-	const client = new AnthropicVertex({ projectId, region, ...(baseURL && { baseURL }) });
+	// AnthropicVertex mints a bearer token through google-auth-library. Standard
+	// ADC remains the default. For an AWS external-account ADC, the custom client
+	// resolves AWS_PROFILE through the AWS SDK, including IAM Identity Center SSO.
+	const client = new AnthropicVertex({
+		projectId,
+		region,
+		...(baseURL && { baseURL }),
+		...(authClient && { authClient }),
+	});
 
 	// Reuse pi-ai's full Anthropic streaming path — events, tool use, thinking,
 	// prompt caching all carry over because the wire format is identical.
