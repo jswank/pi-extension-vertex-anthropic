@@ -40,6 +40,7 @@ import {
 	type Context,
 	type Model,
 	type SimpleStreamOptions,
+	type ThinkingLevelMap,
 } from "@earendil-works/pi-ai";
 import { stream as streamAnthropic } from "@earendil-works/pi-ai/api/anthropic-messages";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -62,14 +63,22 @@ interface VertexClaudeModelDef {
 	maxTokens: number;
 	/** True for models that use adaptive thinking (type: "adaptive") rather than budget-based (type: "enabled"). */
 	adaptiveThinking?: boolean;
+	thinkingLevelMap?: ThinkingLevelMap;
 }
 
 // Per https://platform.claude.com/docs/en/api/claude-on-vertex-ai:
 // - Newer Claude models (4.6+) have no @YYYYMMDD suffix.
-// - Haiku 4.5 still requires the @date stamp.
+// - Haiku 4.5 is available as both claude-haiku-4-5 and claude-haiku-4-5@20251001.
 const MODELS: VertexClaudeModelDef[] = [
 	{
 		id: "claude-haiku-4-5@20251001",
+		name: "Claude Haiku 4.5 (Vertex)",
+		cost: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
+		contextWindow: 200_000,
+		maxTokens: 64_000,
+	},
+	{
+		id: "claude-haiku-4-5",
 		name: "Claude Haiku 4.5 (Vertex)",
 		cost: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
 		contextWindow: 200_000,
@@ -98,6 +107,7 @@ const MODELS: VertexClaudeModelDef[] = [
 		contextWindow: 1_000_000,
 		maxTokens: 128_000,
 		adaptiveThinking: true,
+		thinkingLevelMap: { xhigh: "xhigh", max: "max" },
 	},
 	{
 		id: "claude-opus-4-8",
@@ -106,6 +116,7 @@ const MODELS: VertexClaudeModelDef[] = [
 		contextWindow: 1_000_000,
 		maxTokens: 128_000,
 		adaptiveThinking: true,
+		thinkingLevelMap: { xhigh: "xhigh", max: "max" },
 	},
 	{
 		id: "claude-sonnet-5",
@@ -114,6 +125,7 @@ const MODELS: VertexClaudeModelDef[] = [
 		contextWindow: 1_000_000,
 		maxTokens: 64_000,
 		adaptiveThinking: true,
+		thinkingLevelMap: { xhigh: "xhigh", max: "max" },
 	},
 	{
 		id: "claude-opus-5",
@@ -122,6 +134,42 @@ const MODELS: VertexClaudeModelDef[] = [
 		contextWindow: 1_000_000,
 		maxTokens: 128_000,
 		adaptiveThinking: true,
+		thinkingLevelMap: { xhigh: "xhigh", max: "max" },
+	},
+	{
+		id: "claude-opus-5-5",
+		name: "Claude Opus 5.5 (Vertex)",
+		cost: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+		contextWindow: 1_000_000,
+		maxTokens: 128_000,
+		adaptiveThinking: true,
+		thinkingLevelMap: {
+			off: null,
+			minimal: null,
+			low: "low",
+			medium: "medium",
+			high: "high",
+			xhigh: "xhigh",
+			max: "max",
+		},
+	},
+	{
+		id: "claude-fable-5",
+		name: "Claude Fable 5 (Vertex)",
+		cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+		contextWindow: 1_000_000,
+		maxTokens: 128_000,
+		adaptiveThinking: true,
+		thinkingLevelMap: { off: null, xhigh: "xhigh", max: "max" },
+	},
+	{
+		id: "claude-fable-5-1",
+		name: "Claude Fable 5.1 (Vertex)",
+		cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+		contextWindow: 1_000_000,
+		maxTokens: 128_000,
+		adaptiveThinking: true,
+		thinkingLevelMap: { off: null, xhigh: "xhigh", max: "max" },
 	},
 ];
 
@@ -257,10 +305,10 @@ function multiRegionBaseURL(region: string): string | undefined {
 	}
 }
 
-// Adaptive thinking is supported on Sonnet and Opus models; Haiku uses
+// Adaptive thinking is supported on Sonnet, Opus, and Fable models; Haiku uses
 // budget-based thinking. (Mirrors `supportsAdaptiveThinking` in pi-ai.)
 function supportsAdaptiveThinking(modelId: string): boolean {
-	return /sonnet|opus/.test(modelId);
+	return /sonnet|opus|fable/.test(modelId);
 }
 
 function mapReasoningToEffort(reasoning: SimpleStreamOptions["reasoning"]): AnthropicEffort {
@@ -270,6 +318,10 @@ function mapReasoningToEffort(reasoning: SimpleStreamOptions["reasoning"]): Anth
 			return "low";
 		case "medium":
 			return "medium";
+		case "xhigh":
+			return "xhigh";
+		case "max":
+			return "max";
 		default:
 			return "high";
 	}
@@ -304,7 +356,12 @@ function buildAnthropicOptions(model: Model<Api>, options?: SimpleStreamOptions)
 	}
 
 	if (supportsAdaptiveThinking(model.id)) {
-		return { ...base, thinkingEnabled: true, effort: mapReasoningToEffort(options.reasoning) };
+		const mapped = options.reasoning ? model.thinkingLevelMap?.[options.reasoning] : undefined;
+		const effort: AnthropicEffort =
+			typeof mapped === "string"
+				? (mapped as AnthropicEffort)
+				: mapReasoningToEffort(options.reasoning);
+		return { ...base, thinkingEnabled: true, effort };
 	}
 
 	const level = options.reasoning === "max" || options.reasoning === "xhigh" ? "high" : options.reasoning;
@@ -368,6 +425,7 @@ export default function (pi: ExtensionAPI) {
 			contextWindow: m.contextWindow,
 			maxTokens: m.maxTokens,
 			...(m.adaptiveThinking && { compat: { forceAdaptiveThinking: true } }),
+			...(m.thinkingLevelMap && { thinkingLevelMap: m.thinkingLevelMap }),
 		})),
 		streamSimple: streamVertexAnthropic,
 	});
