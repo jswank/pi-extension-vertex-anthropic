@@ -153,9 +153,10 @@ override. The override takes precedence over `GOOGLE_CLOUD_LOCATION`:
 ```bash
 export GOOGLE_CLOUD_LOCATION_OPUS_MODEL=europe-west4
 export GOOGLE_CLOUD_LOCATION_HAIKU_MODEL=us-east5
+export GOOGLE_CLOUD_LOCATION_FABLE_MODEL=us
 ```
 
-The family is derived from the Claude model ID (`HAIKU`, `SONNET`, or `OPUS`).
+The family is derived from the Claude model ID (`HAIKU`, `SONNET`, `OPUS`, or `FABLE`).
 
 ## Use
 
@@ -169,12 +170,16 @@ Models registered:
 | Provider/model id | Notes |
 | --- | --- |
 | `vertex-anthropic/claude-haiku-4-5@20251001` | 200k ctx, budget-based thinking |
+| `vertex-anthropic/claude-haiku-4-5` | 200k ctx, budget-based thinking |
 | `vertex-anthropic/claude-sonnet-4-6` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-4-6` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-4-7` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-4-8` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-sonnet-5` | 1M ctx, adaptive thinking |
 | `vertex-anthropic/claude-opus-5` | 1M ctx, adaptive thinking |
+| `vertex-anthropic/claude-opus-5-5` | 1M ctx, adaptive thinking |
+| `vertex-anthropic/claude-fable-5` | 1M ctx, adaptive thinking |
+| `vertex-anthropic/claude-fable-5-1` | 1M ctx, adaptive thinking |
 
 Pricing in `index.ts` matches Anthropic-direct pricing — Vertex regional and
 multi-region endpoints add a 10% premium that is not reflected in the cost
